@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Ayarlar') }} — Kinetra{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-greeting"><h1>{{ _('Ayarlar') }}</h1></div>
+</div>
+
+<div class="tabs">
+  {% for p in profiles %}
+  <a href="/settings?profile={{ p.id }}" class="{{ 'active' if active_profile.id == p.id }}">
+    <span class="profile-dot" style="background: {{ p.color }};"></span> {{ p.name }}
+  </a>
+  {% endfor %}
+</div>
+
+{% set icons = {'garmin': '⌚', 'strava': '🏃', 'hevy': '🏋️', 'mfp': '🍎'} %}
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Veri Kaynakları') }} — {{ active_profile.name }}</h2></div>
+  <div class="card">
+    {% for s in sources %}
+    <div class="source-row">
+      <div class="source-row-label">
+        <div class="source-row-icon badge-source {{ s.key }}">{{ icons.get(s.key, '📊') }}</div>
+        <div>
+          <strong>{{ s.label }}</strong><br />
+          {% if s.credential %}
+            {% if s.credential.last_sync_status == 'ok' %}
+            <span class="badge ok">● {{ _('Bağlı') }}</span>
+            {% else %}
+            <span class="badge error">● {{ _('Hata') }}</span>
+            {% endif %}
+            {% if s.credential.last_synced_at %}
+            <div class="metric-caption">{{ _('Son senkron') }}: {{ (s.credential.last_synced_at | local_dt).strftime('%d.%m.%Y %H:%M') }}</div>
+            {% endif %}
+            {% if s.credential.last_sync_message %}
+            <div class="metric-caption">{{ _(s.credential.last_sync_message) }}</div>
+            {% endif %}
+          {% elif not s.available %}
+            <span class="badge">{{ _('Yakında') }}</span>
+          {% else %}
+            <span class="badge">{{ _('Bağlı değil') }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="flex: 1; min-width: 260px;">
+        {% if s.available %}
+          {% if s.credential %}
+          <form method="post" action="/sync/{{ active_profile.id }}/{{ s.key }}" style="display:inline;">
+            <button type="submit" class="secondary">{{ _('Şimdi Senkronize Et') }}</button>
+          </form>
+          <form method="post" action="/settings/{{ active_profile.id }}/{{ s.key }}/disconnect" style="display:inline;">
+            <button type="submit" class="danger">{{ _('Bağlantıyı Kaldır') }}</button>
+          </form>
+          {% elif s.key == 'strava' %}
+          <a class="btn" href="/settings/{{ active_profile.id }}/strava/authorize">{{ _('Strava ile Bağlan') }}</a>
+          {% if strava_app %}
+          <div class="metric-caption" style="margin-top: 8px;">
+            {{ _('Kendi Strava uygulaması kullanılıyor (Client ID {id}).', id=strava_app.client_id) }}
+            <form method="post" action="/settings/{{ active_profile.id }}/strava/app/delete" style="display:inline;">
+              <button type="submit" class="secondary" style="padding: 2px 10px; font-size: 0.8rem;">{{ _('Kaldır') }}</button>
+            </form>
+          </div>
+          {% else %}
+          <details style="margin-top: 10px;">
+            <summary class="metric-caption" style="cursor: pointer;">{{ _('"Bağlı sporcu sınırı aşıldı" hatası mı alıyorsun? Kendi Strava uygulamanı kullan') }}</summary>
+            <div class="metric-caption" style="margin: 8px 0;">
+              {{ _('Strava, her API uygulamasına tek bağlı sporcu hakkı veriyor. Bu profilin sahibi kendi Strava hesabıyla <strong>strava.com/settings/api</strong> adresinden bir uygulama oluşturmalı (Authorization Callback Domain: <code>{domain}</code>), ardından oradaki Client ID ve Client Secret\'ı buraya girip "Strava ile Bağlan"a basmalı.', domain=strava_callback_domain|e)|safe }}
+            </div>
+            <form class="inline" method="post" action="/settings/{{ active_profile.id }}/strava/app">
+              <input type="text" name="client_id" placeholder="Client ID" inputmode="numeric" pattern="[0-9]+" required />
+              <input type="password" name="client_secret" placeholder="Client Secret" required />
+              <button type="submit" class="secondary">{{ _('Kaydet') }}</button>
+            </form>
+          </details>
+          {% endif %}
+          {% elif s.key == 'garmin' %}
+          <form class="inline" method="post" action="/settings/{{ active_profile.id }}/garmin/connect">
+            <input type="email" name="email" placeholder="{{ _('Garmin e-posta') }}" required />
+            <input type="password" name="password" placeholder="{{ _('Garmin şifre') }}" required />
+            <input type="text" name="mfa_code" placeholder="{{ _('MFA kodu (varsa)') }}" />
+            <button type="submit">{{ _('Bağlan') }}</button>
+          </form>
+          {% elif s.key == 'hevy' %}
+          <form class="inline" method="post" action="/settings/{{ active_profile.id }}/hevy/connect">
+            <input type="text" name="api_key" placeholder="Hevy API key" required />
+            <button type="submit">{{ _('Bağlan') }}</button>
+          </form>
+          {% elif s.key == 'mfp' %}
+          <form class="inline" method="post" action="/settings/{{ active_profile.id }}/mfp/connect" style="align-items: flex-start;">
+            <div style="flex: 1; min-width: 260px;">
+              <textarea name="cookie_string" placeholder="{{ _('myfitnesspal.com çerezi (Cookie başlığı)') }}" required style="width: 100%; min-height: 90px;"></textarea>
+              <div class="metric-caption" style="margin-top: 6px;">
+                {{ _('MyFitnessPal\'ın resmi API\'si yok; kullanıcı adı/şifre ile otomatik giriş de artık desteklenmiyor. Tarayıcında myfitnesspal.com\'a giriş yapmış haldeyken DevTools → Application (Chrome/Edge) veya Storage (Firefox) → Cookies → https://www.myfitnesspal.com içindeki tüm satırları <code>isim=değer; isim=değer</code> formatında birleştirip buraya yapıştır.')|safe }}
+              </div>
+            </div>
+            <button type="submit">{{ _('Bağlan') }}</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <span class="metric-caption">{{ _('Bu entegrasyon henüz eklenmedi.') }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="section" id="telegram">
+  <div class="section-header"><h2>Telegram — {{ active_profile.name }}</h2></div>
+  <div class="card">
+    {% if tg_msg %}<div class="metric-caption" style="margin: 0 0 var(--space-3); color: var(--text-primary);">{{ _(tg_msg) }}</div>{% endif %}
+
+    {% if telegram_bot %}
+    <div style="display:flex; align-items:center; gap: var(--space-3); flex-wrap: wrap;">
+      <strong>@{{ telegram_bot.username }}</strong>
+      {% if active_profile.telegram_chat_id %}<span class="badge ok">● {{ _('Grup bağlı') }}</span>{% else %}<span class="badge">{{ _('Grup bağlı değil') }}</span>{% endif %}
+    </div>
+    {% if active_profile.telegram_chat_id %}
+    <div class="metric-caption">{{ _('Akşam kontrolü her gün {hour}:00\'de bu gruba gelir.', hour='%02d'|format(config_evening_hour)) }}</div>
+    <form method="post" action="/settings/{{ active_profile.id }}/telegram/unlink" style="margin-top: var(--space-3); display:inline-block;" data-confirm="{{ _('Grup bağlantısı kaldırılsın mı?') }}" onsubmit="return confirm(this.dataset.confirm);">
+      <button type="submit" class="secondary">{{ _('Grup bağlantısını kaldır') }}</button>
+    </form>
+    {% else %}
+    <div class="metric-caption" style="line-height: 1.6;">
+      {{ _('@{bot} botunu {name} grubuna ekle, kod al ve grupta yaz:', bot=telegram_bot.username, name=active_profile.name) }}
+      {% if active_profile.telegram_link_code %}<br><code style="font-size: 1.1rem;">/bagla {{ active_profile.telegram_link_code }}</code>{% endif %}
+    </div>
+    <form method="post" action="/settings/{{ active_profile.id }}/telegram/code" style="margin-top: var(--space-3); display:inline-block;">
+      <button type="submit" class="secondary">{{ _('Yeni kod oluştur') if active_profile.telegram_link_code else _('Bağlantı kodu oluştur') }}</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/settings/{{ active_profile.id }}/telegram/bot/delete" style="margin-top: var(--space-3); display:inline-block;" data-confirm="{{ _('Bot bu profilden kaldırılsın mı? Grup bağlantısı da kalkar.') }}" onsubmit="return confirm(this.dataset.confirm);">
+      <button type="submit" class="danger">{{ _('Botu kaldır') }}</button>
+    </form>
+    <details style="margin-top: var(--space-3);">
+      <summary class="metric-caption" style="cursor:pointer;">{{ _('Token\'ı değiştir') }}</summary>
+      <form class="inline" method="post" action="/settings/{{ active_profile.id }}/telegram/bot" style="margin-top: 8px;">
+        <input type="password" name="token" placeholder="{{ _('BotFather\'dan yeni token') }}" autocomplete="off" required />
+        <button type="submit" class="secondary">{{ _('Kaydet') }}</button>
+      </form>
+    </details>
+    {% else %}
+    <div class="metric-caption" style="line-height: 1.6; margin: 0 0 var(--space-3);">
+      {{ _('{name} için <strong>@BotFather</strong>\'da oluşturduğun botun token\'ını gir (sohbete veya koda yapıştırma). Kinetra token\'ı doğrular, bot başka bir servise (ör. Manybot) bağlıysa o bağlantıyı kaldırır ve token\'ı şifreli saklar. Grup mesajlarını okuyabilmesi için BotFather\'da <code>/setprivacy</code> → bot → <strong>Disable</strong> yapılmış olmalı.', name=active_profile.name|e)|safe }}
+      {% if telegram_shared %}<br>{{ _('Şu an .env\'deki ortak bot kullanılıyor; buraya profil botu girersen o kullanılır.') }}{% endif %}
+    </div>
+    <form class="inline" method="post" action="/settings/{{ active_profile.id }}/telegram/bot">
+      <input type="password" name="token" placeholder="123456789:ABC..." autocomplete="off" required />
+      <button type="submit">{{ _('Botu kaydet') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Dil') }}</h2></div>
+  <div class="card">
+    <form class="inline" method="post" action="/profiles/{{ active_profile.id }}/language">
+      <select name="lang">
+        {% for code, name in LANGS.items() %}
+        <option value="{{ code }}" {{ 'selected' if (active_profile.language or 'tr') == code }}>{{ name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="secondary">{{ _('Kaydet') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ _('Arayüz, koçun cevapları ve bu profilin Telegram botu bu dili kullanır.') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Profil Resmi') }}</h2></div>
+  <div class="card">
+    <div style="display:flex; align-items:center; gap: var(--space-5); flex-wrap: wrap;">
+      {{ macros.profile_avatar(active_profile, 'profile-avatar', 'width:72px; height:72px; font-size:1.6rem; margin:0;') }}
+      <div style="flex:1; min-width:260px;">
+        <form method="post" action="/profiles/{{ active_profile.id }}/avatar" enctype="multipart/form-data" class="inline">
+          <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif" required />
+          <button type="submit">{{ _('Yükle') }}</button>
+        </form>
+        {% if active_profile.avatar_path %}
+        <form method="post" action="/profiles/{{ active_profile.id }}/avatar/delete" style="margin-top: 8px;">
+          <button type="submit" class="danger">{{ _('Resmi Kaldır') }}</button>
+        </form>
+        {% endif %}
+        {% if avatar_error %}
+        <div class="metric-caption" style="color: var(--danger, #dc2626); margin-top: 8px;">{{ _(avatar_error) }}</div>
+        {% endif %}
+        <div class="metric-caption" style="margin-top: 8px;">{{ _('JPEG, PNG, WEBP veya GIF · maks. 8 MB · otomatik kareye kırpılır.') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Fiziksel Bilgiler') }}</h2></div>
+  <div class="card">
+    <form method="post" action="/profiles/{{ active_profile.id }}/physical-info">
+      <div class="grid grid-3" style="margin-bottom: var(--space-4);">
+        <div>
+          <div class="metric-label" style="margin-bottom: 6px;">{{ _('Cinsiyet') }}</div>
+          <select name="gender" style="width: 100%;">
+            <option value="" {{ 'selected' if not active_profile.gender }}>{{ _('Belirtilmedi') }}</option>
+            <option value="female" {{ 'selected' if active_profile.gender == 'female' }}>{{ _('Kadın') }}</option>
+            <option value="male" {{ 'selected' if active_profile.gender == 'male' }}>{{ _('Erkek') }}</option>
+          </select>
+        </div>
+        <div>
+          <div class="metric-label" style="margin-bottom: 6px;">{{ _('Boy (cm)') }}</div>
+          <input type="number" step="0.1" name="height_cm" placeholder="{{ _('ör. 178') }}" value="{{ active_profile.height_cm or '' }}" style="width: 100%;" />
+        </div>
+        <div>
+          <div class="metric-label" style="margin-bottom: 6px;">{{ _('Kilo Hedefi (kg)') }}</div>
+          <input type="number" step="0.1" name="weight_goal_kg" placeholder="{{ _('ör. 75.0') }}" value="{{ active_profile.weight_goal_kg or '' }}" style="width: 100%;" />
+        </div>
+      </div>
+      <button type="submit" class="secondary">{{ _('Kaydet') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">
+      {{ _('Boy, Kuvvet → Ölçümler sayfasında; kilo hedefi panelde ilerleme yüzdesi olarak gösterilir.') }}
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Profil') }}</h2></div>
+  <div class="card">
+    <form method="post" action="/profiles/{{ active_profile.id }}/delete" data-confirm="{{ _('{name} profilini ve tüm verilerini silmek istediğine emin misin?', name=active_profile.name) }}" onsubmit="return confirm(this.dataset.confirm);">
+      <button type="submit" class="danger">{{ _('Profili Sil') }}</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,69 @@
+{%- import "_macros.html" as macros with context -%}
+<!doctype html>
+<html lang="{{ lang() }}" data-color-scheme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>{% block title %}Kinetra{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ asset('img/kinetra-mark.svg') }}" />
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('img/kinetra-favicon-32.png') }}" />
+  <link rel="apple-touch-icon" href="{{ asset('img/apple-touch-icon.png') }}" />
+  <meta name="apple-mobile-web-app-title" content="Kinetra" />
+  <link rel="stylesheet" href="{{ asset('css/style.css') }}" />
+  <script src="{{ asset('js/kinetra-charts.js') }}"></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% if active_profile %}
+  <nav class="topbar">
+    <a class="brand" href="/dashboard?profile={{ active_profile.id }}">
+      <img class="brand-mark" src="{{ asset('img/kinetra-mark.svg') }}" alt="" />
+      Kinetra
+    </a>
+    <div class="links">
+      <a href="/dashboard?profile={{ active_profile.id }}" class="{{ 'active' if request.url.path == '/dashboard' }}">{{ _('Panel') }}</a>
+      <a href="/activities" class="{{ 'active' if request.url.path == '/activities' }}">{{ _('Aktiviteler') }}</a>
+      <a href="/strength" class="{{ 'active' if request.url.path == '/strength' }}">{{ _('Kuvvet') }}</a>
+      <a href="/nutrition" class="{{ 'active' if request.url.path == '/nutrition' }}">{{ _('Beslenme') }}</a>
+      <a href="/coach-brief" class="{{ 'active' if request.url.path == '/coach-brief' }}">{{ _('Koç') }}</a>
+      <a href="/settings?profile={{ active_profile.id }}" class="{{ 'active' if request.url.path == '/settings' }}">{{ _('Ayarlar') }}</a>
+    </div>
+    <div class="nav-right">
+      {{ macros.lang_switch() }}
+      <a href="/" title="{{ _('Profil değiştir') }}" style="display:flex; align-items:center; gap:8px; color: var(--text-secondary); font-size: 0.85rem; font-weight: 600;">
+        {{ macros.profile_avatar(active_profile, 'avatar', 'width:28px; height:28px; font-size:0.75rem;') }}
+        <span style="display:none;" class="nav-name">{{ active_profile.name }}</span>
+      </a>
+    </div>
+  </nav>
+  {% endif %}
+
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+
+  {% if active_profile %}
+  <nav class="bottom-nav">
+    <a href="/dashboard?profile={{ active_profile.id }}" class="{{ 'active' if request.url.path == '/dashboard' }}">
+      <span class="bottom-nav-icon">🏠</span>{{ _('Panel') }}
+    </a>
+    <a href="/activities" class="{{ 'active' if request.url.path == '/activities' }}">
+      <span class="bottom-nav-icon">📋</span>{{ _('Aktivite') }}
+    </a>
+    <a href="/strength" class="{{ 'active' if request.url.path == '/strength' }}">
+      <span class="bottom-nav-icon">🏋️</span>{{ _('Kuvvet') }}
+    </a>
+    <a href="/nutrition" class="{{ 'active' if request.url.path == '/nutrition' }}">
+      <span class="bottom-nav-icon">🍎</span>{{ _('Beslenme') }}
+    </a>
+    <a href="/coach-brief" class="{{ 'active' if request.url.path == '/coach-brief' }}">
+      <span class="bottom-nav-icon">🧠</span>{{ _('Koç') }}
+    </a>
+    <a href="/settings?profile={{ active_profile.id }}" class="{{ 'active' if request.url.path == '/settings' }}">
+      <span class="bottom-nav-icon">⚙️</span>{{ _('Ayarlar') }}
+    </a>
+  </nav>
+  {% endif %}
+</body>
+</html>

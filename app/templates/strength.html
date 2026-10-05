@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Kuvvet Antrenmanı') }} — Kinetra{% endblock %}
+{% block extra_head %}{% if tab == 'measurements' %}<script src="{{ asset('vendor/chart.umd.js') }}"></script>{% endif %}{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-greeting">
+    <h1>{{ _('Kuvvet Antrenmanı') }}</h1>
+    <p class="subtitle">{{ macros.source_badge('hevy') }}</p>
+  </div>
+</div>
+
+<div class="tabs">
+  <a href="/strength?tab=workouts" class="{{ 'active' if tab == 'workouts' }}">{{ _('Antrenmanlar') }}</a>
+  <a href="/strength?tab=measurements" class="{{ 'active' if tab == 'measurements' }}">📏 {{ _('Ölçümler') }}</a>
+</div>
+
+{% if tab == 'workouts' %}
+
+{% if summary %}
+<div class="grid grid-3" style="margin-bottom: var(--space-8);">
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Bu Ay') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ summary.count }}<span class="metric-unit">{{ _('antrenman') }}</span></div>
+  </div>
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Toplam Set') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ summary.total_sets }}</div>
+  </div>
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Toplam Hacim') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ summary.volume|int }}<span class="metric-unit">kg</span></div>
+  </div>
+</div>
+{% endif %}
+
+{% if workouts %}
+<div class="stack">
+  {% for w in workouts %}
+  <div class="card">
+    <div class="card-title-row">
+      <div>
+        <h2 style="margin-bottom:2px;">{{ w.title }}</h2>
+        <span class="metric-caption">{{ w.activity.start_time|ldate }} · {{ w.total_sets }} set</span>
+      </div>
+      {{ macros.source_badge('hevy') }}
+    </div>
+    {% if w.exercises %}
+    <div class="stack" style="gap: 10px;">
+      {% for ex in w.exercises %}
+      <div style="display:flex; justify-content:space-between; gap:12px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+        <span style="font-weight:600; color:var(--text-primary); flex-shrink:0;">{{ ex.title }}</span>
+        <span style="color:var(--text-secondary); font-size:0.85rem; text-align:right;">{{ ex.summary }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="metric-caption">{{ _('Bu antrenman için egzersiz detayı yok.') }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  {{ macros.empty_state(_('Henüz kuvvet antrenmanı yok'), _('Hevy bağlandığında antrenmanların burada görünecek.'), icon='🏋️', cta_label=_('Hevy Bağla'), cta_href='/settings?profile=' ~ active_profile.id) }}
+</div>
+{% endif %}
+
+{% else %}
+{# ============================= ÖLÇÜMLER SEKMESİ ============================= #}
+
+{% if measurements %}
+{% if body %}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Vücut Ölçümleri') }}</h2><span class="section-link">{{ body.latest.date.strftime('%d.%m.%Y') }}</span></div>
+  <div class="card">
+    <div class="grid grid-metrics">
+      {% for stat in body.stats %}
+      <div>
+        <div class="metric-label">{{ _(stat.label) }}</div>
+        <div style="display:flex; align-items:baseline; gap:6px; margin-top:4px;">
+          <span class="metric-value" style="font-size:1.4rem;">{{ '%.1f'|format(stat.value) }}</span>
+          <span class="metric-unit">{{ stat.unit }}</span>
+        </div>
+        {{ macros.trend_badge(body.trends.get(stat.label)) }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if body.charts %}
+<div class="section">
+  <div class="section-header" style="flex-wrap:wrap; align-items:center;">
+    <h2>{{ _('Ölçüm Trendleri') }}</h2>
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div class="segmented" id="body-range" role="group" aria-label="{{ _('Ölçüm trendi zaman aralığı') }}">
+        {% for months, label in [(1, _('1 ay')), (3, _('3 ay')), (6, _('6 ay')), (12, _('1 yıl')), (36, _('3 yıl')), (60, _('5 yıl'))] %}
+        <button type="button" data-months="{{ months }}" class="{{ 'active' if months == 6 }}" aria-pressed="{{ 'true' if months == 6 else 'false' }}">{{ label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-3">
+    {% for c in body.charts %}
+    {% set ci = loop.index %}
+    <div class="card">
+      <div class="card-title-row" style="align-items:flex-start; gap:8px;">
+        <h2>{{ c.title }} <span class="metric-unit">{{ c.unit }}</span></h2>
+        <div class="metric-caption" style="text-align:right; margin:0; line-height:1.5;">
+          {% for s in c.series %}
+          <div>
+            {% if c.series|length > 1 %}<span style="display:inline-block; width:14px; vertical-align:middle; border-top:2px {{ 'dashed' if loop.index0 else 'solid' }} var({{ s.color }}); margin-right:4px;"></span>{{ s.name }} {% endif %}
+            <strong style="color: var(--text-primary);" id="body-{{ ci }}-s{{ loop.index0 }}-latest">{{ '%.1f'|format(s.latest) }}</strong>
+            <span id="body-{{ ci }}-s{{ loop.index0 }}-change">({{ '%+.1f'|format(s.change) }})</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div id="body-{{ ci }}-plot" style="height:140px;"><canvas id="chart-body-{{ ci }}" aria-label="{{ _('{title} trend grafiği', title=c.title) }}" role="img"></canvas></div>
+      <div id="body-{{ ci }}-empty" class="metric-caption" style="height:140px; display:flex; align-items:center; justify-content:center; margin:0;" hidden>{{ _('Bu aralıkta trend için yeterli ölçüm yok') }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="metric-caption" style="margin-top: var(--space-3);">{{ _('Parantez içindeki değer, seçili aralıktaki ilk ölçüme göre değişim.') }}</div>
+</div>
+{% endif %}
+{% endif %}
+
+
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Geçmiş') }}</h2></div>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>{{ _('Tarih') }}</th><th>{{ _('Kilo') }}</th><th>{{ _('Yağ %') }}</th><th>{{ _('Bel') }}</th><th>{{ _('Göğüs') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for m in measurements %}
+        <tr>
+          <td>{{ m.date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ '%.1f kg'|format(m.weight_kg) if m.weight_kg is not none else '—' }}</td>
+          <td>{{ '%.1f%%'|format(m.fat_percent) if m.fat_percent is not none else '—' }}</td>
+          <td>{{ '%.0f cm'|format(m.waist_cm) if m.waist_cm is not none else '—' }}</td>
+          <td>{{ '%.0f cm'|format(m.chest_cm) if m.chest_cm is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+
+<script>
+const BODY_CHARTS = {{ (body.charts if body else []) | tojson }};
+let bodyMonths = 6;  // varsayılan: son 6 ay
+
+function signed(v) {
+  const r = Math.round(v * 10) / 10;
+  return (r >= 0 ? '+' : '') + r.toFixed(1);
+}
+
+// Grafikleri seçili aralığa (bugünden geriye N ay) göre süzüp çizer; son değer ve "değişim"
+// aralıktaki ilk ölçüme göre hesaplanır. Tema değişince KChart.themed yeniden çağırır.
+const redrawBody = KChart.themed(() => {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - bodyMonths);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  document.querySelectorAll('#body-range button').forEach((b) => {
+    const on = Number(b.dataset.months) === bodyMonths;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+
+  return BODY_CHARTS.map((c, i) => {
+    const keep = c.dates.map((d, k) => (d >= cutoffIso ? k : -1)).filter((k) => k >= 0);
+    const multi = c.series.length > 1;
+    let enough = false;
+    const datasets = c.series.map((s, j) => {
+      const data = keep.map((k) => s.data[k]);
+      const pts = data.filter((v) => v != null);
+      if (pts.length >= 2) enough = true;
+      document.getElementById(`body-${i + 1}-s${j}-latest`).textContent = pts.length ? pts[pts.length - 1].toFixed(1) : '—';
+      document.getElementById(`body-${i + 1}-s${j}-change`).textContent = pts.length >= 2 ? `(${signed(pts[pts.length - 1] - pts[0])})` : '';
+      const color = KChart.token(s.color);
+      // Sol/Sağ çoğu zaman aynı: ikinci seri kesik çizgiyle üstte çizilir ki birinciyi örtmesin.
+      return {
+        label: s.name || c.title, data, borderColor: color,
+        backgroundColor: multi ? color : KChart.alpha(color, 0.14), fill: !multi,
+        borderDash: j ? [6, 4] : [], order: c.series.length - j,
+        spanGaps: true, tension: 0.35, borderWidth: 2,
+        pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: color,
+        pointBorderColor: KChart.token('--surface'), pointBorderWidth: 2,
+      };
+    });
+    document.getElementById(`body-${i + 1}-plot`).hidden = !enough;
+    document.getElementById(`body-${i + 1}-empty`).hidden = enough;
+    if (!enough) return null;
+    return new Chart(document.getElementById('chart-body-' + (i + 1)), {
+      type: 'line',
+      data: { labels: keep.map((k) => c.labels[k]), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: KChart.tooltip({
+            displayColors: multi,
+            itemSort: (a, b) => a.datasetIndex - b.datasetIndex,
+            callbacks: { label: (ctx) => ctx.parsed.y == null ? null : (multi ? ctx.dataset.label + ': ' : '') + ctx.parsed.y.toFixed(1) + ' ' + c.unit },
+          }),
+        },
+        scales: { x: KChart.xAxis({ maxTicksLimit: 4 }), y: { display: false, grace: '10%' } },
+      },
+    });
+  });
+});
+
+document.querySelectorAll('#body-range button').forEach((b) => {
+  b.addEventListener('click', () => { bodyMonths = Number(b.dataset.months); redrawBody(); });
+});
+</script>
+{% else %}
+<div class="card">
+  {{ macros.empty_state(_('Henüz ölçüm verisi yok'), _('Hevy uygulamasındaki Measurements bölümünden bir ölçüm girip senkronize ettiğinde burada görünecek.'), icon='📏', cta_label=_('Hevy Bağla'), cta_href='/settings?profile=' ~ active_profile.id) }}
+</div>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}

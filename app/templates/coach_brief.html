@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Koç') }} — Kinetra{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-greeting">
+    <h1>{{ _('Koç') }}</h1>
+    <p class="subtitle">{{ _('Claude ile sohbet · koç sadece {name} profilinin verisini görür', name=active_profile.name) }}</p>
+  </div>
+</div>
+
+<div class="tabs" style="margin-bottom: var(--space-5);">
+  <a href="/coach-brief" class="{{ 'active' if tab == 'sohbet' }}">💬 {{ _('Sohbet') }}</a>
+  <a href="/coach-brief?tab=hedefler" class="{{ 'active' if tab == 'hedefler' }}">🎯 {{ _('Hedefler') }}</a>
+  <a href="/coach-brief?tab=saglik" class="{{ 'active' if tab == 'saglik' }}">🩺 {{ _('Sağlık') }}</a>
+</div>
+
+{% if tab == 'sohbet' %}
+<div class="card chat-card" id="koc-sohbet">
+  <div class="card-title-row">
+    <h2>{{ _('Koç Sohbeti') }} — {{ active_profile.name }}</h2>
+    {% if chat_messages %}
+    <form method="post" action="/coach/{{ active_profile.id }}/new-thread" data-confirm="{{ _('Yeni sohbet başlatılsın mı? Eski sohbet kayıtlı kalır ama koç onu artık görmez; uzun sohbetler her mesajda daha fazla token harcar.') }}" onsubmit="return confirm(this.dataset.confirm);">
+      <button type="submit" class="secondary">{{ _('Yeni sohbet') }}</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if not chat_ready %}
+  <div class="metric-caption" style="margin: 0 0 var(--space-4); color: var(--warning);">
+    {{ _('Claude API anahtarı tanımlı değil. Sunucudaki <code>.env</code> dosyasına <code>ANTHROPIC_API_KEY=...</code> satırını ekleyip servisi yeniden başlat.')|safe }}
+  </div>
+  {% endif %}
+
+  <div class="chat-log" id="chat-log" aria-live="polite"></div>
+
+  <form id="chat-form" class="chat-form">
+    <textarea id="chat-input" name="message" rows="2" maxlength="4000" required
+      placeholder="{{ _('Örn. Son koşumu yorumla ve yarın için ne önerirsin?') }}" {{ 'disabled' if not chat_ready }}></textarea>
+    <button type="submit" id="chat-send" {{ 'disabled' if not chat_ready }}>{{ _('Gönder') }}</button>
+  </form>
+  <div class="metric-caption num" id="chat-cost" style="margin-top: 8px;">
+    {{ _('Bu ay {name}: ${profile} · iki profil toplam ${total} / bütçe ${budget}', name=active_profile.name, profile='%.2f'|format(chat_month_profile_usd), total='%.2f'|format(chat_usage.total_usd), budget='%.2f'|format(chat_usage.budget_usd)) }}
+  </div>
+</div>
+
+<details class="card disclosure">
+  <summary>{{ _('Bu ayın Claude kullanımı ({month})', month=chat_usage.month_label) }}</summary>
+  <div style="overflow-x: auto; margin-top: var(--space-3);">
+    <table>
+      <thead><tr><th>{{ _('Profil') }}</th><th>{{ _('Yanıt') }}</th><th>{{ _('Girdi') }}</th><th>{{ _('Önbellekten') }}</th><th>{{ _('Önbelleğe') }}</th><th>{{ _('Çıktı') }}</th><th>{{ _('Maliyet') }}</th></tr></thead>
+      <tbody class="num">
+        {% for u in chat_usage.per_profile %}
+        <tr>
+          <td>{{ u.name }}</td><td>{{ u.replies }}</td>
+          <td>{{ u.input_tokens|num }}</td>
+          <td>{{ u.cache_read_tokens|num }}</td>
+          <td>{{ u.cache_write_tokens|num }}</td>
+          <td>{{ u.output_tokens|num }}</td>
+          <td>${{ '%.3f'|format(u.cost_usd) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="metric-caption">{{ _('Bu ay henüz kullanım yok.') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="metric-caption" style="margin-top: 8px;">
+    {{ _('Model: {model}. Tutarlar token sayılarından hesaplanan tahmindir; kesin fatura Anthropic Console\'dadır. Aylık bütçe sınırı .env\'de <code>FITDASH_COACH_MONTHLY_BUDGET_USD</code> ile değiştirilebilir.', model=chat_usage.model|e)|safe }}
+  </div>
+</details>
+
+<details class="card disclosure" id="koc-talimatlari">
+  <summary>{{ _('Koç talimatları') }} — {{ active_profile.name }}</summary>
+  <p class="metric-caption" style="margin: var(--space-3) 0;">
+    {{ _('Claude\'daki Spor Koçu projesinin talimatlarını buraya yapıştırabilirsin (hedefler, yarış takvimi, sakatlık geçmişi gibi). Her profilin talimatları ayrıdır.') }}
+  </p>
+  <form method="post" action="/coach/{{ active_profile.id }}/instructions">
+    <textarea name="instructions" rows="8" style="width: 100%;" placeholder="{{ _('Örn. Hedefim 23 Ekim\'deki 10K yarışı...') }}">{{ coach_instructions }}</textarea>
+    <button type="submit" class="secondary" style="margin-top: var(--space-3);">{{ _('Kaydet') }}</button>
+  </form>
+</details>
+
+<details class="disclosure-plain">
+  <summary class="metric-caption">{{ _('Claude.ai için kopyalanabilir özet (eski yöntem)') }}</summary>
+<div class="card">
+  <div class="card-title-row">
+    <h2>{{ active_profile.name }} — {{ today.strftime('%d.%m.%Y') }}</h2>
+    <button type="button" class="btn" onclick="copyBrief()">📋 {{ _('Kopyala') }}</button>
+  </div>
+  <textarea id="brief-text" readonly
+    style="width:100%; min-height:420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:0.83rem; line-height:1.55; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; color: var(--text-primary);"
+  >{{ brief_text }}</textarea>
+  <div id="copy-status" class="metric-caption" style="margin-top:8px; min-height:18px;"></div>
+  <div class="metric-caption" style="margin-top:4px;">
+    {{ _('Bu sayfayı her antrenmandan sonra açıp "Kopyala"ya bas, sonra Claude\'daki Spor Koçu sohbetine yapıştır. Metnin sonunda Claude\'a plan formatı için bir talimat var — Claude\'un cevabını aynen kopyalayıp aşağıya yapıştırdığında planlar otomatik olarak eklenir ve uygun olanlar Garmin\'e gönderilir.') }}
+  </div>
+</div>
+</details>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Yaklaşan Antrenmanlar') }}</h2></div>
+
+  {% if plan_added is not none %}
+  <div class="card" style="margin-bottom: var(--space-5); border-color: var(--success);">
+    {{ _('<strong>{n}</strong> antrenman eklendi', n=plan_added)|safe }}{% if plan_pushed %}{{ _(', <strong>{n}</strong> tanesi Garmin\'e gönderildi', n=plan_pushed)|safe }}{% endif %}{% if plan_skipped %}{{ _(', {n} satır anlaşılamadığı için atlandı', n=plan_skipped) }}{% endif %}.
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom: var(--space-5);">
+    <h2 style="font-size: 0.95rem;">{{ _('Spor Koçu\'nun cevabını yapıştır') }}</h2>
+    <p class="metric-caption" style="margin-bottom: var(--space-4);">
+      {{ _('Claude\'un yukarıdaki formatta verdiği plan satırlarını aynen kopyalayıp aşağıya yapıştır. Koşu/bisiklet/yürüyüş/yüzme tipindeki antrenmanlar Garmin bağlıysa otomatik olarak takvime gönderilir.') }}
+    </p>
+    <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/bulk">
+      <textarea name="plan_text" required placeholder="{{ _('2026-08-16 | running | Tempo Koşusu | 8 |  | rahat tempo') }}" style="width: 100%; min-height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem;"></textarea>
+      <button type="submit" style="margin-top: var(--space-3);">{{ _('Planı İşle ve Garmin\'e Gönder') }}</button>
+    </form>
+  </div>
+
+  {% if upcoming %}
+  <div class="card">
+    {% for w in upcoming %}
+    <div class="source-row">
+      <div class="source-row-label" style="min-width: 220px;">
+        <div>
+          <strong>{{ w.title }}</strong>
+          <div class="metric-caption">
+            {{ w.date.strftime('%d.%m.%Y') }} · {{ _(workout_type_labels.get(w.workout_type, w.workout_type)) }}
+            {% if w.target_distance_m %} · {{ '%.1f'|format(w.target_distance_m / 1000) }} km{% endif %}
+            {% if w.target_duration_s %} · {{ (w.target_duration_s // 60)|int }} {{ _('dk') }}{% endif %}
+          </div>
+          {% if w.notes %}<div class="metric-caption">{{ w.notes }}</div>{% endif %}
+          {% if w.status == 'done' %}
+          <span class="badge ok" style="margin-top: 4px;">✅ {{ _('Yapıldı') }}</span>
+          {% endif %}
+          {% if w.garmin_workout_id and not w.garmin_error %}
+          <span class="badge ok" style="margin-top: 4px;">● {{ _('Garmin\'de planlı') }}</span>
+          {% elif w.garmin_error %}
+          <div class="metric-caption" style="color: var(--danger);">{{ _(w.garmin_error) }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if not w.garmin_workout_id and w.workout_type in ['running', 'cycling', 'walking', 'swimming', 'strength'] %}
+          {% if has_garmin %}
+          <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/{{ w.id }}/push-garmin">
+            <button type="submit" class="secondary">⌚ {{ _('Garmin\'e Gönder') }}</button>
+          </form>
+          {% else %}
+          <span class="metric-caption" title="{{ _('Önce Ayarlar\'dan Garmin\'e bağlan') }}">⌚ {{ _('Garmin bağlı değil') }}</span>
+          {% endif %}
+        {% endif %}
+        {% if w.date == today and not w.status %}
+        <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/{{ w.id }}/status">
+          <input type="hidden" name="status" value="done" />
+          <button type="submit" class="secondary">✅ {{ _('Yapıldı') }}</button>
+        </form>
+        <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/{{ w.id }}/status" data-confirm="{{ _('Yapılmadı olarak işaretlensin mi? Garmin takviminden de kaldırılır.') }}" onsubmit="return confirm(this.dataset.confirm);">
+          <input type="hidden" name="status" value="skip" />
+          <button type="submit" class="secondary">❌ {{ _('Yapılmadı') }}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/{{ w.id }}/reschedule" style="display:flex; gap:6px; align-items:center;">
+          <input type="date" name="new_date" value="{{ w.date.isoformat() }}" min="{{ today.isoformat() }}" required aria-label="{{ _('Yeni tarih') }}" />
+          <button type="submit" class="secondary">{{ _('Taşı') }}</button>
+        </form>
+        <form method="post" action="/coach-brief/{{ active_profile.id }}/plan/{{ w.id }}/delete" data-confirm="{{ _('Bu planlı antrenmanı silmek istediğine emin misin?') }}" onsubmit="return confirm(this.dataset.confirm);">
+          <button type="submit" class="danger">{{ _('Sil') }}</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card">
+    {{ macros.empty_state(_('Henüz planlı antrenman yok'), _('Spor Koçu sohbetinden aldığın plan metnini yukarıya yapıştırabilirsin.'), icon='📅') }}
+  </div>
+  {% endif %}
+</div>
+
+
+{% elif tab == 'hedefler' %}
+{# ============================= HEDEFLER SEKMESİ ============================= #}
+
+<div class="section" style="margin-top: 0;">
+  <div class="section-header"><h2>{{ _('Bu hafta') }} — {{ week.start.strftime('%d.%m') }}–{{ week_end.strftime('%d.%m') }}</h2></div>
+  <div class="card">
+    {% if race_phase %}
+    <span class="badge" style="margin-bottom: 8px;">🏁 {{ _('Yarış dönemi') }} · {{ race_phase.race.name }} · {{ race_phase_text }}</span>
+    <div class="metric-caption">{{ _('Bu dönemde koç antrenman yapısını yarış fazına göre değiştirebilir; haftalık düzen yön göstericidir.') }}</div>
+    {% else %}
+    <span class="badge ok" style="margin-bottom: 8px;">● {{ _('Normal dönem — haftalık hedef geçerli') }}</span>
+    {% endif %}
+    <div class="grid grid-3" style="margin-top: var(--space-3);">
+      <div>
+        <div class="metric-label">{{ _('Koşu') }}</div>
+        <div class="num" style="font-size: 1.6rem; font-weight: 700;">{{ week.runs|length }}<span class="metric-caption" style="font-size: 1rem;"> / {{ week.targets.runs }}</span></div>
+      </div>
+      <div>
+        <div class="metric-label">{{ _('Uzun koşu') }}</div>
+        <div style="font-size: 1.6rem; font-weight: 700;">{% if week.long_done %}✓{% elif week.long_planned %}📅{% elif week.targets.long_day is none %}—{% else %}✗{% endif %}</div>
+        {% if week.long_done %}<div class="metric-caption num">{{ '%.1f'|format(week.long_done[1]) }} km</div>
+        {% elif week.long_planned %}<div class="metric-caption">{{ week.long_planned.title }}</div>{% endif %}
+      </div>
+      <div>
+        <div class="metric-label">{{ _('Kuvvet') }}</div>
+        <div class="num" style="font-size: 1.6rem; font-weight: 700;">{{ week.strength|length }}<span class="metric-caption" style="font-size: 1rem;"> / {{ week.targets.strength }}</span></div>
+      </div>
+    </div>
+    <div class="metric-caption" style="margin-top: var(--space-3);">
+      {% if week.pending %}{{ _('Kalan plan') }}: {% for w in week.pending|sort(attribute='date') %}{{ w.title }}{{ ', ' if not loop.last }}{% endfor %} · {% endif %}
+      {% if week_gap %}<span style="color: var(--danger);">{{ _('Plan dışı eksik') }}: {{ week_gap }}</span>{% else %}{{ _('Plan haftalık hedefi karşılıyor') }} ✓{% endif %}
+    </div>
+    <div class="metric-caption">{{ _('Hafta Pazartesi başlar.') }} {{ _('Geçen hafta') }} ({{ prev_week_start.strftime('%d.%m') }}–{{ prev_week_end.strftime('%d.%m') }}): {{ prev_week_summary }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Haftalık düzen') }}</h2></div>
+  <div class="card">
+    <form method="post" action="/coach-brief/{{ active_profile.id }}/week-template">
+      <div class="week-template">
+        {% for day_index in range(7) %}
+        <label>
+          <span class="metric-label">{{ weekday_name(day_index) }}</span>
+          <select name="day{{ day_index }}">
+            {% for key, label in day_kinds.items() %}
+            <option value="{{ key }}" {{ 'selected' if week_template[day_index] == key }}>{{ _(label) }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endfor %}
+      </div>
+      <button type="submit" class="secondary" style="margin-top: var(--space-3);">{{ _('Kaydet') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ week_template_text }}. {{ _('Koç normal dönemde haftayı bu hedefe ulaştırmaya çalışır; kaçan antrenmanı haftanın kalan günlerine yerleştirir. Akşam kontrolü hafta gerideyse kalan günleri düzenler, Pazar akşamı gelecek haftanın planını onaya gönderir.') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Yarış takvimi') }}</h2></div>
+  {% for r in races %}
+  <div class="card" style="margin-bottom: var(--space-3);">
+  <div class="source-row" style="padding: 0; border-bottom: none;">
+    <div class="source-row-label">
+      <div>
+        <strong>{{ r.name }}</strong>
+        <div class="metric-caption">{{ r.date.strftime('%d.%m.%Y') }} · {{ '%g'|format(r.distance_km) }} km · {{ _(race_priorities.get(r.priority, r.priority)) }}{% if r.goal %} · {{ _('hedef') }}: {{ r.goal }}{% endif %}</div>
+        {% if r.priority == 'A' %}<div class="metric-caption">{{ _('Yarış dönemi: {n} hafta önceden başlar', n=r.prep_weeks or default_prep_weeks(r.distance_km)) }}</div>{% endif %}
+        {% if r.notes %}<div class="metric-caption">{{ r.notes }}</div>{% endif %}
+        {% if r.date < today %}<span class="badge" style="margin-top: 4px;">{{ _('Geçti') }}</span>{% elif race_phase and race_phase.race.id == r.id %}<span class="badge ok" style="margin-top: 4px;">● {{ race_phase_text }}</span>{% endif %}
+      </div>
+    </div>
+    <form method="post" action="/coach-brief/{{ active_profile.id }}/race/{{ r.id }}/delete" data-confirm="{{ _('Bu yarış silinsin mi?') }}" onsubmit="return confirm(this.dataset.confirm);">
+      <button type="submit" class="danger">{{ _('Sil') }}</button>
+    </form>
+  </div>
+  </div>
+  {% else %}
+  <div class="card" style="margin-bottom: var(--space-3);">{{ macros.empty_state(_('Takvimde yarış yok'), _('A önceliğinde bir yarış eklediğinde, hazırlık penceresinde koç yarış dönemine geçer.'), icon='🏁') }}</div>
+  {% endfor %}
+  <div class="card">
+    <form method="post" action="/coach-brief/{{ active_profile.id }}/race" class="stacked-form">
+      <div class="grid grid-2">
+        <label><span class="metric-label">{{ _('Yarış adı') }}</span><input type="text" name="name" required placeholder="{{ _('İstanbul Yarı Maratonu') }}" /></label>
+        <label><span class="metric-label">{{ _('Tarih') }}</span><input type="date" name="date" required min="{{ today.isoformat() }}" /></label>
+        <label><span class="metric-label">{{ _('Mesafe (km)') }}</span><input type="number" name="distance_km" step="0.01" min="1" required placeholder="21.1" /></label>
+        <label><span class="metric-label">{{ _('Öncelik') }}</span>
+          <select name="priority">{% for key, label in race_priorities.items() %}<option value="{{ key }}">{{ _(label) }}</option>{% endfor %}</select>
+        </label>
+        <label><span class="metric-label">{{ _('Hedef (opsiyonel)') }}</span><input type="text" name="goal" placeholder="{{ _('1:55 altı / rahat bitir') }}" /></label>
+        <label><span class="metric-label">{{ _('Hazırlık süresi, hafta (boşsa mesafeye göre)') }}</span><input type="number" name="prep_weeks" min="1" max="30" placeholder="21K: 12 · 10K: 8" /></label>
+      </div>
+      <label style="display:block; margin-top: var(--space-3);"><span class="metric-label">{{ _('Not (parkur, rakım, hava vb.)') }}</span><input type="text" name="notes" /></label>
+      <button type="submit" style="margin-top: var(--space-3);">{{ _('Yarış ekle') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ _('A: yarış dönemi başlatır (hazırlık → taper → yarış haftası → toparlanma). B: normal haftada kısa hafifletmeyle ara yarış. C: antrenman koşusu.') }}</div>
+  </div>
+</div>
+
+{% else %}
+{# ============================= SAĞLIK SEKMESİ ============================= #}
+
+{% if health_error %}
+<div class="card" style="margin-bottom: var(--space-5); border-color: var(--danger); color: var(--danger);">{{ _(health_error) }}</div>
+{% endif %}
+
+<div class="section" style="margin-top: 0;">
+  <div class="section-header"><h2>{{ _('Kontrol takvimi') }} — {{ active_profile.name }}</h2></div>
+  <div class="card">
+    <div class="grid grid-2">
+      {% for item in health_items %}
+      <div>
+        <div class="metric-label">{{ _(item.label) }}</div>
+        {% if item.state == 'unknown' %}
+        <div class="metric-caption">{{ _('Son tarih kayıtlı değil — aşağıdan gir.') }}</div>
+        {% else %}
+        <div style="font-weight: 650; margin-top: 4px;" class="num">{{ _('Sıradaki') }}: {{ item.due_date.strftime('%d.%m.%Y') }}</div>
+        <span class="badge {{ 'error' if item.state == 'overdue' else ('' if item.state == 'soon' else 'ok') }}">
+          {% if item.state == 'overdue' %}● {{ _('{n} gün gecikti', n=-item.days) }}{% elif item.state == 'soon' %}● {{ _('{n} gün kaldı', n=item.days) }}{% else %}● {{ _('{n} gün var', n=item.days) }}{% endif %}
+        </span>
+        <div class="metric-caption">{{ _('Son') }}: {{ item.last_date.strftime('%d.%m.%Y') }} · {{ _('her {n} ayda bir', n=item.interval_months) }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <form method="post" action="/health/{{ active_profile.id }}/schedule" style="margin-top: var(--space-5);">
+      <div class="grid grid-2">
+        {% for item in health_items %}
+        <div>
+          <div class="metric-label" style="margin-bottom: 6px;">{{ _(item.label) }} — {{ _('son tarih / aralık (ay)') }}</div>
+          <div style="display:flex; gap: 8px;">
+            <input type="date" name="{{ item.kind }}_last" value="{{ item.last_date.isoformat() if item.last_date else '' }}" style="flex:1;" />
+            <input type="number" name="{{ item.kind }}_interval" value="{{ item.interval_months }}" min="1" max="36" style="width: 80px;" />
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="secondary" style="margin-top: var(--space-3);">{{ _('Kaydet') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ _('Zamanı yaklaşan veya geçen kontroller akşam kontrolüyle birlikte Telegram grubuna haftada bir hatırlatılır. Yorumlanan bir tahlilin tarihi okunabilirse son tarih otomatik güncellenir.') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Tahlil / rapor yükle') }}</h2></div>
+  <div class="card">
+    <form method="post" action="/health/{{ active_profile.id }}/upload" enctype="multipart/form-data" data-busy="{{ _('Claude yorumluyor… (1 dk sürebilir)') }}" onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = this.dataset.busy;">
+      <div style="display:flex; gap: var(--space-3); flex-wrap: wrap; align-items: center;">
+        <select name="kind">
+          {% for key, label in health_kinds.items() %}<option value="{{ key }}">{{ _(label) }}</option>{% endfor %}
+        </select>
+        <input type="file" name="file" accept="application/pdf,image/jpeg,image/png,image/webp" required />
+      </div>
+      <input type="text" name="note" placeholder="{{ _('Not (isteğe bağlı), ör. aç karnına, sabah 08:00') }}" style="width: 100%; margin-top: var(--space-3);" />
+      <button type="submit" style="margin-top: var(--space-3);">{{ _('Yükle ve yorumlat') }}</button>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ _('PDF veya fotoğraf (en fazla 10 MB). Claude önceki sonuçlarla karşılaştırır, doktora sorulacak soruları hazırlar; teşhis koymaz. Telegram grubuna dosya göndererek de yükleyebilirsin.') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Doktor notu') }}</h2></div>
+  <div class="card">
+    <form method="post" action="/health/{{ active_profile.id }}/doctor-note" data-busy="{{ _('Koç planı gözden geçiriyor…') }}" onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = this.dataset.busy;">
+      <textarea name="note" rows="3" required style="width: 100%;" placeholder="{{ _('Ör. Kontrol normal; tempo antrenmanları serbest, yılda bir kontrol.') }}"></textarea>
+      <div style="display:flex; gap: var(--space-3); align-items:center; margin-top: var(--space-3); flex-wrap: wrap;">
+        <input type="date" name="record_date" value="{{ today.isoformat() }}" />
+        <button type="submit">{{ _('Kaydet ve planı güncellet') }}</button>
+      </div>
+    </form>
+    <div class="metric-caption" style="margin-top: 8px;">{{ _('Doktor notları koç talimatlarındaki tıbbi kuralların önüne geçer; koç neyin değiştiğini Sohbet sekmesinde (ve Telegram\'da) açıklar.') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Kayıtlar') }}</h2></div>
+  {% for r in health_records %}
+  <details class="card disclosure" style="margin-top: var(--space-3);">
+    <summary>{{ _(health_kinds.get(r.kind, r.kind)) }} · {{ (r.record_date or r.created_at).strftime('%d.%m.%Y') }}{% if r.source == 'telegram' %} · Telegram{% endif %}{% if r.file_path and not r.ai_summary %} · {{ _('yorumlanmadı') }}{% endif %}</summary>
+    {% if r.text_note %}<p style="margin-top: var(--space-3);"><strong>{{ _('Not') }}:</strong> {{ r.text_note }}</p>{% endif %}
+    {% if r.ai_summary %}<div class="msg-body health-summary" data-md="{{ r.ai_summary }}" style="margin-top: var(--space-3); background: var(--surface-hover);"></div>{% endif %}
+    <div style="display:flex; gap: 8px; margin-top: var(--space-3); flex-wrap: wrap; align-items: center;">
+      {% if r.file_path %}<a class="btn secondary" href="/health/file/{{ r.id }}" target="_blank">{{ _('Belgeyi aç') }}</a>{% endif %}
+      {% if r.file_path and not r.ai_summary %}
+      <form method="post" action="/health/{{ active_profile.id }}/record/{{ r.id }}/analyze"><button type="submit" class="secondary">{{ _('Yorumlat') }}</button></form>
+      {% endif %}
+      <form method="post" action="/health/{{ active_profile.id }}/record/{{ r.id }}/delete" data-confirm="{{ _('Bu kayıt ve dosyası silinsin mi?') }}" onsubmit="return confirm(this.dataset.confirm);"><button type="submit" class="danger">{{ _('Sil') }}</button></form>
+      {% if r.cost_usd %}<span class="metric-caption num" style="margin:0;">{{ _('Yorum maliyeti') }}: ${{ '%.3f'|format(r.cost_usd) }}</span>{% endif %}
+    </div>
+  </details>
+  {% else %}
+  <div class="card">{{ macros.empty_state(_('Henüz sağlık kaydı yok'), _('Tahlil yükleyerek veya doktor notu girerek başlayabilirsin.'), icon='🩺') }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+const I18N = {{ {
+  'plan_button': _('📅 Plana ekle ve Garmin\'e gönder'),
+  'channel_telegram': 'Telegram',
+  'channel_auto': _('Akşam kontrolü'),
+  'welcome': _('Merhaba! Son antrenmanlarını, toparlanmanı veya sıradaki antrenmanını sorabilirsin. Koç güncel Kinetra verilerini otomatik görür.'),
+  'thinking': _('Koç düşünüyor…'),
+  'truncated': _('(Yanıt uzunluk sınırında kesildi.)'),
+  'cost_line': _('Bu mesaj: ${msg} · bu ay {name}: ${profile} · iki profil toplam ${total} / bütçe ${budget}'),
+  'disconnected': _('Bağlantı kesildi: '),
+  'copied_full': _('Kopyalandı — Spor Koçu sohbetine yapıştırabilirsin.'),
+  'copied': _('Kopyalandı.'),
+} | tojson }};
+</script>
+
+{% if tab == 'sohbet' %}
+<script>
+const CHAT = {{ chat_messages | tojson }};
+const CHAT_PID = {{ active_profile.id | tojson }};
+const CHAT_NAME = {{ active_profile.name | tojson }};
+const CHAT_BUDGET = {{ '%.2f'|format(chat_usage.budget_usd) | tojson }};
+const chatLog = document.getElementById('chat-log');
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+// Koçun cevabı için küçük, güvenli bir markdown dönüştürücü (önce HTML kaçışlanır).
+function inline(s) {
+  return s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+function md(text) {
+  const out = [];
+  let list = null;
+  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of esc(text || '').split('\n')) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^#{1,4}\s+(.*)/))) { close(); out.push(`<p><strong>${inline(m[1])}</strong></p>`); }
+    else if ((m = line.match(/^\s*[-*•]\s+(.*)/))) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (!line.trim()) { close(); }
+    else { close(); out.push(`<p>${inline(line)}</p>`); }
+  }
+  close();
+  return out.join('');
+}
+
+// "{ad}" yer tutucularını doldurur (çeviri metinleri sunucudan gelir).
+function fmt(template, values) {
+  return template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? values[k] : m));
+}
+
+function planForm(lines) {
+  const form = document.createElement('form');
+  form.method = 'post';
+  form.action = `/coach-brief/${CHAT_PID}/plan/bulk`;
+  form.className = 'chat-plan';
+  const ta = document.createElement('textarea');
+  ta.name = 'plan_text'; ta.hidden = true; ta.value = lines.join('\n');
+  const rep = document.createElement('input');
+  rep.type = 'hidden'; rep.name = 'replace'; rep.value = '1';
+  const btn = document.createElement('button');
+  btn.type = 'submit'; btn.className = 'secondary';
+  btn.textContent = I18N.plan_button;
+  form.append(ta, rep, btn);
+  return form;
+}
+
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = `msg msg-${role}`;
+  const body = document.createElement('div');
+  body.className = 'msg-body';
+  if (role === 'assistant') body.innerHTML = md(text); else body.textContent = text;
+  el.appendChild(body);
+  chatLog.appendChild(el);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return el;
+}
+
+const CHANNEL_LABELS = { telegram: I18N.channel_telegram, auto: I18N.channel_auto };
+for (const m of CHAT) {
+  const el = addMsg(m.role, m.text);
+  if (CHANNEL_LABELS[m.channel] && m.role !== 'system') {
+    const tag = document.createElement('div');
+    tag.className = 'msg-channel';
+    tag.textContent = CHANNEL_LABELS[m.channel];
+    el.appendChild(tag);
+  }
+  if (m.plan_lines && m.plan_lines.length) el.appendChild(planForm(m.plan_lines));
+}
+if (!CHAT.length) {
+  addMsg('system', I18N.welcome);
+}
+
+document.getElementById('chat-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const input = document.getElementById('chat-input');
+  const send = document.getElementById('chat-send');
+  const text = input.value.trim();
+  if (!text) return;
+  addMsg('user', text);
+  input.value = '';
+  send.disabled = true; input.disabled = true;
+  const reply = addMsg('assistant', '');
+  const body = reply.querySelector('.msg-body');
+  body.innerHTML = `<span class="typing">${esc(I18N.thinking)}</span>`;
+  let acc = '';
+  try {
+    const res = await fetch(`/coach/${CHAT_PID}/chat`, { method: 'POST', body: new URLSearchParams({ message: text }) });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        const e = JSON.parse(line);
+        if (e.t === 'delta') { acc += e.text; body.innerHTML = md(acc); chatLog.scrollTop = chatLog.scrollHeight; }
+        else if (e.t === 'error') { reply.classList.add('msg-error'); body.textContent = e.message; }
+        else if (e.t === 'done') {
+          if (e.truncated) body.insertAdjacentHTML('beforeend', `<p class="metric-caption">${esc(I18N.truncated)}</p>`);
+          if (e.plan_lines && e.plan_lines.length) reply.appendChild(planForm(e.plan_lines));
+          document.getElementById('chat-cost').textContent = fmt(I18N.cost_line, {
+            msg: e.cost_usd.toFixed(3), name: CHAT_NAME, profile: e.month_profile_usd.toFixed(2),
+            total: e.month_total_usd.toFixed(2), budget: CHAT_BUDGET,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    reply.classList.add('msg-error');
+    body.textContent = I18N.disconnected + err;
+  } finally {
+    send.disabled = false; input.disabled = false; input.focus();
+  }
+});
+</script>
+{% endif %}
+
+<script>
+function copyBrief() {
+  const el = document.getElementById('brief-text');
+  const status = document.getElementById('copy-status');
+  el.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(el.value).then(() => {
+      status.textContent = I18N.copied_full;
+    }).catch(() => {
+      document.execCommand('copy');
+      status.textContent = I18N.copied;
+    });
+  } else {
+    document.execCommand('copy');
+    status.textContent = I18N.copied;
+  }
+}
+</script>
+
+<script>
+// Sağlık sekmesindeki Claude yorumları: güvenli küçük Markdown dönüştürücü (sohbettekinin tablo destekli hali)
+(function () {
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inl = (t) => t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  document.querySelectorAll('.health-summary').forEach((el) => {
+    const out = []; let table = [];
+    const flush = () => { if (table.length) { out.push('<div style="overflow-x:auto"><table>' + table.join('') + '</table></div>'); table = []; } };
+    for (const raw of esc(el.dataset.md || '').split('\n')) {
+      const line = raw.trim();
+      if (line.startsWith('|')) {
+        if (!/^\|[\s:|-]+\|$/.test(line)) table.push('<tr>' + line.slice(1, -1).split('|').map((c) => `<td>${inl(c.trim())}</td>`).join('') + '</tr>');
+        continue;
+      }
+      flush();
+      let m;
+      if ((m = line.match(/^#{1,4}\s+(.*)/))) out.push(`<p><strong>${inl(m[1])}</strong></p>`);
+      else if ((m = line.match(/^[-*•]\s+(.*)/))) out.push(`<p>• ${inl(m[1])}</p>`);
+      else if (line) out.push(`<p>${inl(line)}</p>`);
+    }
+    flush();
+    el.innerHTML = out.join('');
+  });
+})();
+</script>
+
+{% endblock %}

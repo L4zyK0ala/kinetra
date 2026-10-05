@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Panel') }} — Kinetra{% endblock %}
+{% block extra_head %}<script src="{{ asset('vendor/chart.umd.js') }}"></script>{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-left">
+    {{ macros.profile_avatar(active_profile, 'avatar hero-avatar') }}
+    <div class="hero-greeting">
+      <h1>{{ greeting }}</h1>
+      <p class="subtitle">{{ today_label }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="today-grid">
+  {# ---------------- Toparlanma ---------------- #}
+  <div class="card">
+    <div class="eyebrow-row">
+      <h2 style="font-size: 1.05rem;">{{ _('Toparlanma') }}</h2>
+      {% if readiness %}<span class="metric-caption" style="margin:0;">Garmin · {{ readiness.date.strftime('%d.%m') }} · {{ _('son 7 gün ortalamasına göre') }}</span>{% endif %}
+    </div>
+    {% if readiness %}
+    <div class="readiness-body">
+      <div class="readiness-ring">
+        {{ macros.ring_svg(readiness.sleep_ring, 'var(--viz-aqua)', size=132, stroke=11,
+             center_text=(readiness.sleep.value|int if readiness.sleep else '—'), sub_text=_('uyku skoru')) }}
+        <div class="metric-caption num" style="margin-top: 6px;">
+          {% if readiness.sleep_hours %}{{ _('{h} sa uyku', h=readiness.sleep_hours) }}{% endif %}
+          {% if readiness.sleep and readiness.sleep.baseline %}<br>{{ _('ort.') }} {{ readiness.sleep.baseline|round|int }}{% endif %}
+        </div>
+        {% if readiness.sleep %}{{ macros.trend_badge(readiness.sleep.trend) }}{% endif %}
+      </div>
+      <div class="readiness-signals">
+        {% for s in readiness.signals %}
+        <div class="signal-row">
+          <span class="signal-label">{{ _(s.label) }}</span>
+          <div style="display:flex; align-items:center; gap: 10px;">
+            <div class="signal-base num">{% if s.baseline %}{{ _('ort.') }} {{ s.baseline|round|int }}{% endif %}</div>
+            {{ macros.trend_badge(s.trend) }}
+            <span class="signal-value num">{{ s.value|int }}<span class="metric-unit"> {{ s.unit }}</span></span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    {{ macros.empty_state(_('Toparlanma verisi yok'), _('Garmin bağlandığında uyku, nabız ve body battery burada görünecek.'), icon='🌙') }}
+    {% endif %}
+  </div>
+
+  {# ---------------- Koç: sıradaki antrenman ---------------- #}
+  {% if plan %}
+  <div class="card plan-card">
+    <div class="eyebrow">{{ _('Koç') }} · {{ plan.when }}</div>
+    <div class="plan-title">{{ plan.workout.title }}</div>
+    <div class="plan-meta num">{{ plan.meta }}</div>
+    {% if plan.workout.notes %}<div class="plan-notes">{{ plan.workout.notes }}</div>{% endif %}
+    <div class="plan-foot">
+      {% if plan.done %}
+      <span class="badge ok">✓ {{ _('Bugün tamamlandı') }}</span>
+      {% elif plan.workout.garmin_workout_id and not plan.workout.garmin_error %}
+      <span class="badge ok">⌚ {{ _('Garmin\'de planlı') }}</span>
+      {% else %}<span></span>{% endif %}
+      <a class="section-link" href="/coach-brief">{{ _('Koç\'a git') }} →</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="card">
+    {{ macros.empty_state(_('Planlı antrenman yok'), _('Koç sayfasından Claude\'un önerisini ekleyebilirsin.'), icon='📅', cta_label=_('Koç'), cta_href='/coach-brief') }}
+  </div>
+  {% endif %}
+</div>
+
+{# ---------------- Kısa göstergeler ---------------- #}
+<div class="today-kpis section" style="margin-top: var(--space-5);">
+  <div class="card">
+    <div class="metric-label">{{ _('Adım · bugün') }}</div>
+    {% if steps %}
+    <div style="display:flex; align-items:center; gap: var(--space-4); margin-top: var(--space-3);">
+      {{ macros.ring_svg(steps.ring, 'var(--viz-blue)', size=84, stroke=8, center_text=((steps.value / steps.goal * 100)|round|int ~ '%')) }}
+      <div>
+        <div class="metric-value num" style="font-size: 1.6rem;">{{ steps.value|num }}</div>
+        <div class="metric-caption num" style="margin:0;">{{ _('hedef') }} {{ steps.goal|num }}</div>
+      </div>
+    </div>
+    {% else %}<div class="metric-caption">{{ _('Bugün için adım verisi yok.') }}</div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="metric-label">{{ _('Son 7 gün') }}</div>
+    <div style="display:flex; align-items:baseline; gap:6px; margin-top: var(--space-3);">
+      <span class="metric-value num" style="font-size: 1.6rem;">{{ week.km }}</span><span class="metric-unit">km</span>
+      {{ macros.trend_badge(week.km_trend) }}
+    </div>
+    <div class="activity-stats num" style="margin-top: 6px;">
+      <span><strong>{{ week.count }}</strong> {{ _('aktivite') }}</span>
+      <span><strong>{{ week.duration }}</strong> {{ _('süre') }}</span>
+    </div>
+    <div class="metric-caption">{{ _('önceki 7 güne göre') }}</div>
+  </div>
+
+  <div class="card">
+    <div class="metric-label">{{ _('Vücut · son 6 ay') }}</div>
+    {% if body %}
+    <div class="body-rows">
+      {% for b in body %}
+      <div class="body-row">
+        <span class="signal-label">{{ _(b.label) }}</span>
+        <div class="spark-cell">{% if b.spark %}{{ macros.sparkline(b.spark, 'var(--viz-orange)' if b.key == 'fat_percent' else 'var(--viz-blue)') }}{% endif %}</div>
+        <div class="body-value num">
+          <div><strong>{{ '%.1f'|format(b.value) }}</strong><span class="metric-unit"> {{ b.unit }}</span></div>
+          {% if b.change is not none or b.goal %}
+          <div class="metric-caption">{% if b.change is not none %}{{ '%+.1f'|format(b.change) }}{% endif %}{% if b.change is not none and b.goal %} · {% endif %}{% if b.goal %}{{ _('hedef') }} {{ b.goal }}{% endif %}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <a class="section-link" href="/strength?tab=measurements" style="display:inline-block; margin-top: var(--space-3); font-size: 0.8rem;">{{ _('Tüm ölçümler ve grafikler') }} →</a>
+    {% else %}<div class="metric-caption">{{ _('Ölçüm verisi yok.') }}</div>{% endif %}
+  </div>
+</div>
+
+{# ---------------- Son aktivite ---------------- #}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Son Aktivite') }}</h2><a class="section-link" href="/activities">{{ _('Tümü') }} →</a></div>
+  {% if hero %}
+  {% set a = hero.item.activity %}
+  <a class="card interactive" href="/activities/{{ a.id }}" style="display:block; text-decoration:none; color:inherit;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--space-3); flex-wrap: wrap;">
+      <div style="display:flex; align-items:center; gap: var(--space-3);">
+        <span class="activity-icon">{{ hero.item.icon }}</span>
+        <div>
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">{{ _(hero.item.label) }}</div>
+          <div class="metric-caption num" style="margin:0;">{{ a.start_time.strftime('%d.%m.%Y, %H:%M') }}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px;">{{ macros.source_badge(a.source) }}{% for s in hero.item.also_from %}{{ macros.source_badge(s) }}{% endfor %}</div>
+    </div>
+    <div class="hero-activity">
+      {% if hero.distance %}<div><div class="metric-label">{{ _('Mesafe') }}</div><div class="metric-value num">{{ hero.distance }}<span class="metric-unit">km</span></div></div>{% endif %}
+      {% if hero.duration %}<div><div class="metric-label">{{ _('Süre') }}</div><div class="metric-value num">{{ hero.duration }}</div></div>{% endif %}
+      {% if hero.pace %}<div><div class="metric-label">Pace</div><div class="metric-value num">{{ hero.pace }}</div></div>{% endif %}
+      {% if hero.hr %}<div><div class="metric-label">{{ _('Ort. nabız') }}</div><div class="metric-value num">{{ hero.hr }}<span class="metric-unit">bpm</span></div></div>{% endif %}
+    </div>
+  </a>
+  {% if more_activities %}
+  <div class="card" style="margin-top: var(--space-4);">
+    <div class="activity-feed">{% for item in more_activities %}{{ macros.activity_feed_item(item) }}{% endfor %}</div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="card">{{ macros.empty_state(_('Henüz aktivite yok'), '', icon='🏃') }}</div>
+  {% endif %}
+</div>
+
+{# ---------------- 30 günlük trendler ---------------- #}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Son 30 Gün') }}</h2></div>
+  <div class="grid grid-2">
+    <div class="card"><div class="card-title-row"><h2>{{ _('Dinlenik Nabız') }} <span class="metric-unit">bpm</span></h2></div><div style="height:160px;"><canvas id="t-hr" role="img" aria-label="{{ _('Dinlenik nabız, son 30 gün') }}"></canvas></div></div>
+    <div class="card"><div class="card-title-row"><h2>{{ _('Uyku') }} <span class="metric-unit">{{ _('saat') }}</span></h2></div><div style="height:160px;"><canvas id="t-sleep" role="img" aria-label="{{ _('Uyku süresi, son 30 gün') }}"></canvas></div></div>
+  </div>
+</div>
+
+<script>
+const T_LABELS = {{ trend_labels | tojson }};
+const T_SERIES = [
+  { id: 't-hr', data: {{ trend_hr | tojson }}, color: '--viz-blue', unit: 'bpm', digits: 0 },
+  { id: 't-sleep', data: {{ trend_sleep | tojson }}, color: '--viz-aqua', unit: {{ _('sa')|tojson }}, digits: 1 },
+];
+KChart.themed(() => T_SERIES.map((s) => {
+  const color = KChart.token(s.color);
+  return new Chart(document.getElementById(s.id), {
+    type: 'line',
+    data: { labels: T_LABELS, datasets: [{
+      data: s.data, borderColor: color, backgroundColor: KChart.alpha(color, 0.14), fill: true,
+      spanGaps: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2,
+      pointHoverBackgroundColor: color, pointHoverBorderColor: KChart.token('--surface'), pointHoverBorderWidth: 2,
+    }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: KChart.tooltip({ callbacks: { label: (ctx) => ctx.parsed.y == null ? null : ctx.parsed.y.toFixed(s.digits) + ' ' + s.unit } }),
+      },
+      scales: { x: KChart.xAxis(), y: KChart.yAxis({}, { grace: '5%' }) },
+    },
+  });
+}));
+</script>
+
+{% endblock %}

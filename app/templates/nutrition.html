@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Beslenme') }} — Kinetra{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-greeting">
+    <h1>{{ _('Beslenme') }}</h1>
+    <p class="subtitle">{{ macros.source_badge('mfp') }}</p>
+  </div>
+</div>
+
+{% if today %}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Bugün') }}</h2><span class="section-link">{{ today.date|ldate(with_time=False) }}</span></div>
+  <div class="card">
+    <div style="display: flex; flex-wrap: wrap; gap: 32px; align-items: center;">
+      <div style="text-align: center;">
+        {{ macros.ring_svg(
+          today.calories, '#2f6fed', size=170, stroke=14,
+          center_text=((today.calories.remaining|round|int) if today.calories.remaining is not none else (today.calories.value|round|int)),
+          sub_text=_('Kalan Kalori')
+        ) }}
+        <div class="metric-caption" style="margin-top: 6px;">
+          {{ _('Hedef') }} {{ today.calories.goal|round|int if today.calories.goal else '—' }} − {{ _('Yiyecek') }} {{ today.calories.value|round|int }}
+          {% if today.exercise_calories %}<br />{{ _('Egzersiz') }}: {{ today.exercise_calories|round|int }} kcal{% endif %}
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        {% for key, label, color in [('carbs', _('Karbonhidrat'), '#06b6d4'), ('fat', _('Yağ'), '#8b5cf6'), ('protein', _('Protein'), '#d97706')] %}
+        {% set m = today[key] %}
+        <div style="text-align: center;">
+          {{ macros.ring_svg(m, color, size=110, stroke=10, center_text=(m.value|round|int), sub_text='/' ~ (m.goal|round|int if m.goal else '—') ~ ' g') }}
+          <div class="metric-label" style="margin-top: 6px;">{{ label }}</div>
+          <div class="metric-caption">{{ _('{n} g kalan', n=m.remaining|round|int) if m.remaining is not none else '' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="grid grid-3">
+    <div class="card">
+      <h2>{{ _('Kalp için Sağlıklı') }}</h2>
+      {{ macros.nutrient_bar(_('Yağ'), today.fat, unit='g', color='#8b5cf6') }}
+      {{ macros.nutrient_bar(_('Sodyum'), today.sodium, unit='mg', color='#d97706') }}
+      {{ macros.nutrient_bar(_('Kolesterol'), today.cholesterol, unit='mg', color='#dc2626') }}
+      {% if not (today.sodium.goal or today.cholesterol.goal) %}
+      <div class="metric-caption">{{ _('Sodyum/kolesterol MyFitnessPal günlük ayarlarında gösterilmiyorsa burada görünmez.') }}</div>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>{{ _('Düşük Karbonhidrat') }}</h2>
+      {{ macros.nutrient_bar(_('Net Karbonhidrat'), today.carbs, unit='g', color='#2f6fed') }}
+      {{ macros.nutrient_bar(_('Şeker'), today.sugar, unit='g', color='#06b6d4') }}
+      {{ macros.nutrient_bar(_('Lif'), today.fiber, unit='g', color='#16a34a') }}
+    </div>
+    <div class="card">
+      <h2>{{ _('Özel Özet') }}</h2>
+      {{ macros.nutrient_bar(_('Karbonhidrat'), today.carbs, unit='g', color='#06b6d4') }}
+      {{ macros.nutrient_bar(_('Yağ'), today.fat, unit='g', color='#8b5cf6') }}
+      {{ macros.nutrient_bar(_('Protein'), today.protein, unit='g', color='#d97706') }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Geçmiş') }}</h2></div>
+  <div class="card">
+    {% if logs %}
+    <table>
+      <thead>
+        <tr><th>{{ _('Tarih') }}</th><th>{{ _('Kalori') }}</th><th>{{ _('Protein') }}</th><th>{{ _('Karbonhidrat') }}</th><th>{{ _('Yağ') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>{{ log.date.strftime('%d.%m.%Y') }}</td>
+          <td>{{ log.calories|int if log.calories is not none else '—' }}</td>
+          <td>{{ '%.0f g'|format(log.protein_g) if log.protein_g is not none else '—' }}</td>
+          <td>{{ '%.0f g'|format(log.carbs_g) if log.carbs_g is not none else '—' }}</td>
+          <td>{{ '%.0f g'|format(log.fat_g) if log.fat_g is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {{ macros.empty_state(_('Henüz beslenme verisi yok'), _('MyFitnessPal bağlandığında günlük beslenme verilerin burada görünecek.'), icon='🍎', cta_label=_('MyFitnessPal Bağla'), cta_href='/settings?profile=' ~ active_profile.id) }}
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

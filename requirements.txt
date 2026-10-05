@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+sqlalchemy
+python-dotenv
+cryptography
+apscheduler
+garminconnect
+stravalib
+requests
+Pillow
+anthropic

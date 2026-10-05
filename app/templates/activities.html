@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _('Aktiviteler') }} — Kinetra{% endblock %}
+{% block extra_head %}{% if tab == 'running' %}<script src="{{ asset('vendor/chart.umd.js') }}"></script>{% endif %}{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero-greeting"><h1>{{ _('Aktiviteler') }}</h1></div>
+</div>
+
+<div class="tabs">
+  <a href="/activities?tab=all" class="{{ 'active' if tab == 'all' }}">{{ _('Tümü') }}</a>
+  <a href="/activities?tab=running" class="{{ 'active' if tab == 'running' }}">🏃 {{ _('Koşu') }}</a>
+</div>
+
+{% if tab == 'all' %}
+
+<div class="tabs">
+  <a href="/activities" class="{{ 'active' if not source }}">{{ _('Tüm Kaynaklar') }}</a>
+  <a href="/activities?source=garmin" class="{{ 'active' if source == 'garmin' }}">Garmin</a>
+  <a href="/activities?source=strava" class="{{ 'active' if source == 'strava' }}">Strava</a>
+  <a href="/activities?source=hevy" class="{{ 'active' if source == 'hevy' }}">Hevy</a>
+</div>
+
+<div class="card">
+  {% if feed %}
+  <div class="activity-feed">
+    {% for item in feed %}{{ macros.activity_feed_item(item) }}{% endfor %}
+  </div>
+  {% else %}
+  {{ macros.empty_state(_('Henüz aktivite yok'), _('Ayarlar’dan bir kaynak bağladığında aktivitelerin burada akacak.'), icon='🏃', cta_label=_('Kaynak Bağla'), cta_href='/settings?profile=' ~ active_profile.id) }}
+  {% endif %}
+</div>
+
+{% else %}
+{# ============================= KOŞU SEKMESİ ============================= #}
+
+{% if running_summary %}
+<div class="grid grid-3" style="margin-bottom: var(--space-8);">
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Bu Ay') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ '%.1f'|format(running_summary.distance_km) }}<span class="metric-unit">km</span></div>
+    <div class="metric-caption">{{ _('{n} koşu', n=running_summary.count) }} · {{ running_summary.total_duration or '—' }}</div>
+  </div>
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Ortalama Pace') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ running_summary.avg_pace or '—' }}</div>
+    <div class="metric-caption">{{ _('dk/km') }}</div>
+  </div>
+  <div class="card metric-card">
+    <div class="metric-label">{{ _('Ortalama Kalori') }}</div>
+    <div class="metric-value" style="margin-top:8px;">{{ running_summary.avg_calories or '—' }}</div>
+    <div class="metric-caption">{{ _('koşu başına') }}</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Haftalık Mesafe') }}</h2></div>
+  <div class="card"><div style="height:220px;"><canvas id="chart-weekly-distance"></canvas></div></div>
+</div>
+
+<div class="section">
+  <div class="section-header"><h2>{{ _('Son Koşular') }}</h2></div>
+  <div class="card">
+    <div class="activity-feed">
+      {% for item in runs_feed %}{{ macros.activity_feed_item(item) }}{% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+const WEEKLY_LABELS = {{ weekly.labels | tojson }};
+const WEEKLY_DISTANCE = {{ weekly.distance_km | tojson }};
+KChart.themed(() => [new Chart(document.getElementById('chart-weekly-distance'), {
+  type: 'bar',
+  data: {
+    labels: WEEKLY_LABELS,
+    datasets: [{ data: WEEKLY_DISTANCE, backgroundColor: KChart.token('--viz-blue'), borderRadius: 6, maxBarThickness: 28 }],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: KChart.tooltip({ callbacks: { label: (ctx) => ctx.parsed.y + ' km' } }),
+    },
+    scales: { x: KChart.xAxis({ maxTicksLimit: 10 }), y: KChart.yAxis() },
+  },
+})]);
+</script>
+{% else %}
+<div class="card">
+  {{ macros.empty_state(_('Bu ay koşu yok'), _('Bir koşu senkronize edildiğinde istatistiklerin burada görünecek.'), icon='🏃') }}
+</div>
+{% endif %}
+{% endif %}
+
+{% endblock %}

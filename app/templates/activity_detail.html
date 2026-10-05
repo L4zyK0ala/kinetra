@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}{{ _(label) }} — Kinetra{% endblock %}
+{% block extra_head %}
+<script src="{{ asset('vendor/chart.umd.js') }}"></script>
+{% if map_points_json %}
+<link rel="stylesheet" href="{{ asset('vendor/leaflet.css') }}" />
+<script src="{{ asset('vendor/leaflet.js') }}"></script>
+{% endif %}
+{% endblock %}
+{% block content %}
+
+<a class="section-link" href="/activities" style="display:inline-block; margin-bottom: var(--space-4);">← {{ _('Aktivitelere Dön') }}</a>
+
+<div class="hero">
+  <div class="hero-left">
+    <span class="avatar hero-avatar" style="background: var(--primary-dim); color: var(--primary-strong); font-size: 1.5rem;">{{ icon }}</span>
+    <div class="hero-greeting">
+      <h1>{{ _(label) }}</h1>
+      <p class="subtitle">{{ activity.start_time|ldate(long=True) }}</p>
+    </div>
+  </div>
+  {{ macros.source_badge(activity.source) }}
+</div>
+
+<div class="summary-strip">
+  {% if activity.distance_m %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Mesafe') }}</div>
+    <div class="metric-value">{{ '%.2f'|format(activity.distance_m / 1000) }}<span class="metric-unit">km</span></div>
+  </div>
+  {% endif %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Süre') }}</div>
+    <div class="metric-value">{{ duration_str or '—' }}</div>
+  </div>
+  {% if pace %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Ortalama Pace') }}</div>
+    <div class="metric-value">{{ pace }}</div>
+  </div>
+  {% endif %}
+  {% if activity.avg_hr %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Ort. Nabız') }}</div>
+    <div class="metric-value">{{ activity.avg_hr|int }}<span class="metric-unit">bpm</span></div>
+  </div>
+  {% endif %}
+  {% if activity.calories %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Kalori') }}</div>
+    <div class="metric-value">{{ activity.calories|int }}<span class="metric-unit">kcal</span></div>
+  </div>
+  {% endif %}
+  {% if activity.elevation_gain_m %}
+  <div class="summary-cell">
+    <div class="metric-label">{{ _('Tırmanış') }}</div>
+    <div class="metric-value">{{ activity.elevation_gain_m|int }}<span class="metric-unit">m</span></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if map_points_json %}
+<div class="section">
+  <div class="section-header">
+    <h2>{{ _('Rota') }}</h2>
+    {% if stream_from_other_source %}<span class="section-link">{{ _('{source} kopyasından', source=macros.source_badge(stream_from_other_source))|safe }}</span>{% endif %}
+  </div>
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <div id="activity-map" style="height: 360px; border-radius: var(--radius-lg);"></div>
+  </div>
+</div>
+{% endif %}
+
+{% if elevation_series or hr_series %}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Grafikler') }}</h2></div>
+  <div class="grid grid-2">
+    {% if hr_series %}
+    <div class="card"><div class="card-title-row"><h2>{{ _('Kalp Atışı') }}</h2></div><div style="height:180px;"><canvas id="chart-hr-detail"></canvas></div></div>
+    {% endif %}
+    {% if elevation_series %}
+    <div class="card"><div class="card-title-row"><h2>{{ _('Elevasyon') }}</h2></div><div style="height:180px;"><canvas id="chart-elevation"></canvas></div></div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if splits %}
+<div class="section">
+  <div class="section-header"><h2>{{ _('Splitler') }}</h2></div>
+  <div class="card" style="padding: 0;">
+    <table>
+      <thead>
+        <tr><th>Km</th><th>{{ _('Süre') }}</th><th>Pace</th><th>{{ _('Ort. Nabız') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for s in splits %}
+        <tr>
+          <td>{% if s.is_partial %}{{ s.distance_m }} m{% else %}{{ s.index }}{% endif %}</td>
+          <td>{{ (s.duration_s // 60)|int }}:{{ '%02d'|format(s.duration_s % 60) }}</td>
+          <td>{{ (s.pace_s_per_km // 60)|int }}:{{ '%02d'|format(s.pace_s_per_km % 60) }}/km{% if s.is_partial %}*{% endif %}</td>
+          <td>{{ s.avg_hr or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if splits|selectattr('is_partial')|list %}
+  <div class="metric-caption" style="margin-top:8px;">* {{ _('Tam km değil, koşunun kalan kısa parçası — pace o kısa mesafe için ekstrapole edilmiştir.') }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if not summary.has_gps %}
+<div class="section">
+  <div class="card">
+    {{ macros.empty_state(_('Harita verisi yok'), _('Bu aktivite için GPS/HR zaman serisi bulunmuyor (şu an sadece Strava üzerinden senkronize edilen aktivitelerde mevcut).'), icon='🗺️') }}
+  </div>
+</div>
+{% endif %}
+
+<script>
+{% if map_points_json %}
+const MAP_POINTS = {{ map_points_json | safe }};
+if (MAP_POINTS.length) {
+  const map = L.map('activity-map', { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  const line = L.polyline(MAP_POINTS, { color: KChart.token('--viz-blue'), weight: 4 }).addTo(map);
+  map.fitBounds(line.getBounds(), { padding: [24, 24] });
+}
+{% endif %}
+
+function buildDetailChart(canvasId, labels, data, colorToken) {
+  const el = document.getElementById(canvasId);
+  if (!el) return null;
+  const color = KChart.token(colorToken);
+  return new Chart(el, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data, borderColor: color, backgroundColor: KChart.alpha(color, 0.14),
+        fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 3, borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: KChart.tooltip({ callbacks: { title: (items) => items[0].label + ' km' } }),
+      },
+      scales: { x: KChart.xAxis(), y: KChart.yAxis() },
+    },
+  });
+}
+
+KChart.themed(() => [
+  {% if hr_series %}buildDetailChart('chart-hr-detail', {{ hr_series.labels | tojson }}, {{ hr_series.data | tojson }}, '--viz-red'),{% endif %}
+  {% if elevation_series %}buildDetailChart('chart-elevation', {{ elevation_series.labels | tojson }}, {{ elevation_series.data | tojson }}, '--viz-aqua'),{% endif %}
+]);
+</script>
+
+{% endblock %}

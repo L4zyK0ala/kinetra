@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <title>Kinetra</title>
+  <rect width="120" height="120" rx="27" fill="#0b1220"/>
+  <path d="M25 86 C 35 86 38 64 50 64 C 60 64 62 79 70 78 C 74 77.5 76 74 78 70 L 91 39" fill="none" stroke="#22c39a" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="25" cy="86" r="7.5" fill="#22c39a"/>
+  <circle cx="91" cy="38" r="11" fill="#f59e0b"/>
+</svg>

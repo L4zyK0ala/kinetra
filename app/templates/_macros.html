@@ -1,0 +1,124 @@
+{% macro profile_avatar(p, class_attr='avatar', style_attr='') %}
+{% if p.avatar_path %}
+<img class="{{ class_attr }}" style="{{ style_attr }} object-fit:cover;" src="/static/{{ p.avatar_path }}" alt="{{ p.name }}" />
+{% else %}
+<span class="{{ class_attr }}" style="{{ style_attr }} background: {{ p.color }};">{{ p.name[:1]|upper }}</span>
+{% endif %}
+{% endmacro %}
+
+
+{% macro ring_svg(r, color, size=120, stroke=12, center_text=None, sub_text=None) %}
+{% set c = (size / 2) | round(2) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 {{ size }} {{ size }}">
+  <circle cx="{{ c }}" cy="{{ c }}" r="{{ r.radius }}" fill="none" stroke="var(--border)" stroke-width="{{ stroke }}" />
+  <circle cx="{{ c }}" cy="{{ c }}" r="{{ r.radius }}" fill="none" stroke="{{ color }}" stroke-width="{{ stroke }}"
+    stroke-dasharray="{{ r.circumference }}" stroke-dashoffset="{{ r.offset }}"
+    stroke-linecap="round" transform="rotate(-90 {{ c }} {{ c }})" />
+  {% if center_text is not none %}
+  <text x="{{ c }}" y="{{ (c + (6 if not sub_text else -1)) | round(1) }}" text-anchor="middle" font-size="{{ (size * 0.22) | round | int }}" font-weight="700" fill="var(--text-primary)">{{ center_text }}</text>
+  {% endif %}
+  {% if sub_text %}
+  <text x="{{ c }}" y="{{ (c + size * 0.17) | round(1) }}" text-anchor="middle" font-size="{{ (size * 0.09) | round | int }}" fill="var(--text-muted)">{{ sub_text }}</text>
+  {% endif %}
+</svg>
+{% endmacro %}
+
+
+{% macro sparkline(points, color='#2f6fed') %}
+{% if points %}
+<svg class="sparkline" viewBox="0 0 100 36" preserveAspectRatio="none">
+  <polyline points="{{ points }}" fill="none" stroke="{{ color }}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+</svg>
+{% endif %}
+{% endmacro %}
+
+
+{% macro nutrient_bar(label, r, unit='g', color='#2f6fed') %}
+{% if r.goal %}
+<div style="margin-bottom: 14px;">
+  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+    <span style="font-size:0.85rem; color:var(--text-secondary); font-weight:600;">{{ label }}</span>
+    <span style="font-size:0.85rem; color:var(--text-primary); font-weight:650;">{{ r.value|round|int }}/{{ r.goal|round|int }}{{ unit }}</span>
+  </div>
+  <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ r.pct }}%; background: {{ color }};"></div></div>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{% macro trend_badge(trend) %}
+{% if trend %}
+<span class="trend {{ trend.cls }}">{{ trend.arrow }} {{ _(trend.text) }}</span>
+{% endif %}
+{% endmacro %}
+
+
+{% macro metric_card(label, value, unit=None, trend=None, spark_points=None, spark_color='#2f6fed', caption=None, size='md', icon=None) %}
+<div class="card metric-card">
+  <div style="display:flex; align-items:center; justify-content:space-between;">
+    <div class="metric-label">{{ label }}</div>
+    {% if icon %}<span style="font-size:1.1rem; opacity:0.7;">{{ icon }}</span>{% endif %}
+  </div>
+  <div style="display:flex; align-items:baseline; gap:6px; margin-top:8px;">
+    <span class="metric-value {{ 'lg' if size == 'lg' }}">{{ value }}</span>
+    {% if unit %}<span class="metric-unit">{{ unit }}</span>{% endif %}
+  </div>
+  <div style="display:flex; align-items:center; gap:8px; margin-top:6px; min-height:22px;">
+    {{ trend_badge(trend) }}
+    {% if caption %}<span class="metric-caption" style="margin:0;">{{ caption }}</span>{% endif %}
+  </div>
+  {% if spark_points %}
+  <div style="margin-top:10px;">{{ sparkline(spark_points, spark_color) }}</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro source_badge(source) %}
+{% set labels = {'garmin': 'Garmin', 'strava': 'Strava', 'hevy': 'Hevy', 'mfp': 'MyFitnessPal'} %}
+<span class="badge badge-source {{ source }}">{{ labels.get(source, source) }}</span>
+{% endmacro %}
+
+
+{% macro empty_state(title, description='', icon='📊', cta_label=None, cta_href=None) %}
+<div class="empty-state">
+  <div class="empty-icon">{{ icon }}</div>
+  <h3>{{ title }}</h3>
+  {% if description %}<p>{{ description }}</p>{% endif %}
+  {% if cta_label and cta_href %}<a class="btn" href="{{ cta_href }}">{{ cta_label }}</a>{% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro activity_feed_item(item) %}
+{% set a = item.activity %}
+<a class="activity-item" href="/activities/{{ a.id }}" style="text-decoration:none; color:inherit;">
+  <div class="activity-icon">{{ item.icon }}</div>
+  <div class="activity-body">
+    <div class="activity-title-row">
+      <span class="activity-title">{{ _(item.label) }}</span>
+      {% if a.calories %}<span class="activity-kcal">{{ a.calories|int }} kcal</span>{% endif %}
+    </div>
+    <div class="activity-stats">
+      {% for s in item.stats %}<span>{{ s }}</span>{% endfor %}
+      {% if a.avg_hr %}<span><strong>{{ a.avg_hr|int }}</strong> bpm</span>{% endif %}
+    </div>
+    <div class="activity-meta">
+      <span>{{ a.start_time|ldate }}</span>
+      {{ source_badge(a.source) }}
+      {% for s in item.also_from %}{{ source_badge(s) }}{% endfor %}
+    </div>
+  </div>
+</a>
+{% endmacro %}
+
+
+
+
+{% macro lang_switch() %}
+{% set other = 'en' if lang() == 'tr' else 'tr' %}
+<form method="post" action="/language" class="lang-switch">
+  <input type="hidden" name="lang" value="{{ other }}" />
+  <button type="submit" class="ghost" title="{{ LANGS[other] }}" aria-label="{{ LANGS[other] }}">{{ other|upper }}</button>
+</form>
+{% endmacro %}

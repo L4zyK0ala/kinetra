@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "_macros.html" as macros with context %}
+{% block title %}Kinetra — {{ _('Profil Seç') }}{% endblock %}
+{% block content %}
+<div class="welcome">
+  <div style="display:flex; justify-content:flex-end; width:100%;">{{ macros.lang_switch() }}</div>
+  <img class="brand-mark-lg" src="{{ asset('img/kinetra-mark.svg') }}" alt="Kinetra" />
+  <h1>Kinetra</h1>
+  <p class="subtitle">{{ _('Garmin, Strava, Hevy ve MyFitnessPal verilerin tek panelde.') }}</p>
+
+  <div class="profile-picker-grid">
+    {% for p in profiles %}
+    <a class="profile-card" href="/profiles/{{ p.id }}/select">
+      {{ macros.profile_avatar(p, 'profile-avatar') }}
+      <div class="profile-name">{{ p.name }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="max-width: 380px; margin-top: var(--space-8); text-align: left;">
+    <h2 style="font-size: 0.95rem;">{{ _('Yeni Profil Ekle') }}</h2>
+    <form class="inline" method="post" action="/profiles">
+      <input type="text" name="name" placeholder="{{ _('İsim (ör. Deniz)') }}" required />
+      <input type="color" name="color" value="#2f6fed" />
+      <button type="submit">{{ _('Ekle') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+# Gizli ayarlar ve kişisel veri — asla commit etme
+.env
+*.db
+*.db-journal
+app/data/
+app/static/uploads/
+deploy/ssl/
+*.key
+*.pem
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
