@@ -1,0 +1,62 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Don't include personal data:** no real names, routes, health values, API keys, bot tokens or cookies. Security issues go through [SECURITY.md](https://github.com/L4zyK0ala/kinetra/blob/main/SECURITY.md), not here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Dashboard / pages
+        - Garmin
+        - Strava
+        - Hevy
+        - MyFitnessPal
+        - Coach (Claude)
+        - Telegram
+        - Goals / races
+        - Health
+        - Translations
+        - Setup / deployment
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: UI language
+      options:
+        - English
+        - Turkish
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error message
+      description: From `journalctl -u <service>` or the terminal. Remove tokens, emails and personal values first.
+      render: text
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "e.g. Ubuntu 26.04, Python 3.14, commit abc1234"
