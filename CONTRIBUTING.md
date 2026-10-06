@@ -5,6 +5,7 @@ Thanks for helping out. Bug reports, fixes, translations and new integrations ar
 ## Before you start
 
 - **Security issues:** don't open a public issue. Follow [SECURITY.md](SECURITY.md) instead.
+- **Be kind.** Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - **Bigger changes** (a new integration, a new page, a schema change): open an issue first, so we can agree on the approach before you write the code.
 - **Small fixes** (typos, small bugs, translations): a pull request is enough.
 
