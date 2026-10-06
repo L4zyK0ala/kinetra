@@ -3,7 +3,7 @@
 <h1 align="center">Kinetra</h1>
 
 <p align="center">
-A self-hosted training dashboard for runners who also lift: it merges Garmin, Strava, Hevy and MyFitnessPal data, adds an AI coach (Claude), and lets you manage your plan from Telegram.
+A self-hosted training dashboard for runners who also lift: it merges Garmin, Strava, Hevy, and MyFitnessPal data, adds an AI coach (Claude), and lets you manage your plan from Telegram.
 <br><br>
 <a href="README.tr.md">Türkçe</a> · The UI is available in English and Turkish.
 </p>
@@ -14,23 +14,23 @@ A self-hosted training dashboard for runners who also lift: it merges Garmin, St
 
 ## Why
 
-Watch, running app, gym logger and food diary each keep a slice of your training. Kinetra pulls them into one place for a household: several profiles on one server, each with their own accounts, goals and coach. It runs on a home server behind your own network or VPN, so your data stays with you.
+Garmin Connect, Strava, Hevy, and MyFitnessPal each keep a slice of your training. Kinetra pulls them into one place for a household: several profiles on one server, each with their own accounts, goals and coach. It runs on a home server behind your own network or VPN, so your data stays with you.
 
 ## Features
 
 **Today panel**
-- Recovery card: sleep score, resting heart rate, Body Battery and stress against your 7-day average.
-- Today's planned workout from the coach, plus steps, weekly distance and body trends.
+- Recovery card: sleep score, resting heart rate, Body Battery, and stress against your 7-day average.
+- Today's planned workout from the coach, plus steps, weekly distance, and body trends.
 - Light and dark mode, mobile layout with a bottom nav.
 
 **Activities**
 - Garmin and Strava duplicates of the same workout are merged.
-- Route map, heart-rate and elevation charts, km splits, aerobic decoupling.
+- Route map, heart rate and elevation charts, km splits, aerobic decoupling.
 - Running cadence is shown in steps per minute (Strava's single-leg values are doubled).
 
 **Strength and body**
 - Hevy workouts with sets, weights and volume.
-- Body measurements with per-metric charts and a 1 month to 5 year range picker.
+- Body measurements with per-metric charts and a 1-month to 5-year range picker.
 
 **Nutrition**
 - MyFitnessPal calories and macros against your goals.
